@@ -13,9 +13,11 @@
  */
 package com.netflix.priam.identity.config;
 
+import com.amazonaws.internal.InstanceMetadataServiceResourceFetcher;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
+import com.amazonaws.util.EC2MetadataUtils;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.inject.Inject;
@@ -23,6 +25,7 @@ import com.google.inject.Singleton;
 import com.netflix.priam.cred.ICredential;
 import com.netflix.priam.utils.RetryableCallable;
 import com.netflix.priam.utils.SystemUtils;
+import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
@@ -40,6 +43,12 @@ public class AWSInstanceInfo implements InstanceInfo {
             "http://169.254.169.254/latest/meta-data/local-hostname";
     static final String PUBLIC_HOSTIP_URL = "http://169.254.169.254/latest/meta-data/public-ipv4";
     static final String LOCAL_HOSTIP_URL = "http://169.254.169.254/latest/meta-data/local-ipv4";
+
+    static final String NEW_PUBLIC_HOSTNAME_URL = "/latest/meta-data/public-hostname";
+    static final String NEW_LOCAL_HOSTNAME_URL = "/latest/meta-data/local-hostname";
+    static final String NEW_PUBLIC_HOSTIP_URL = "/latest/meta-data/public-ipv4";
+    static final String NEW_LOCAL_HOSTIP_URL = "/latest/meta-data/local-ipv4";
+
     private JSONObject identityDocument = null;
     private String privateIp;
     private String hostIP;
@@ -61,9 +70,12 @@ public class AWSInstanceInfo implements InstanceInfo {
     @Override
     public String getPrivateIP() {
         if (privateIp == null) {
-            privateIp =
+            String oldprivateIp =
                     SystemUtils.getDataFromUrl(
                             "http://169.254.169.254/latest/meta-data/local-ipv4");
+            logger.info("ayushis: oldPrivateip: {}", oldprivateIp);
+            privateIp = EC2MetadataUtils.getPrivateIpAddress();
+            logger.info("ayushis: newPrivateip: {}", privateIp);
         }
         return privateIp;
     }
@@ -71,9 +83,12 @@ public class AWSInstanceInfo implements InstanceInfo {
     @Override
     public String getRac() {
         if (rac == null) {
-            rac =
+            String oldrac =
                     SystemUtils.getDataFromUrl(
                             "http://169.254.169.254/latest/meta-data/placement/availability-zone");
+            rac = EC2MetadataUtils.getAvailabilityZone();
+            logger.info("ayushis: oldrac: {}", oldrac);
+            logger.info("ayushis: newrac: {}", rac);
         }
         return rac;
     }
@@ -98,9 +113,13 @@ public class AWSInstanceInfo implements InstanceInfo {
     @Override
     public String getInstanceId() {
         if (instanceId == null) {
-            instanceId =
+
+            String oldinstanceId =
                     SystemUtils.getDataFromUrl(
                             "http://169.254.169.254/latest/meta-data/instance-id");
+            instanceId = EC2MetadataUtils.getInstanceId();
+            logger.info("ayushis: oldinstanceid: {}", oldinstanceId);
+            logger.info("ayushis: new instanceid : {}", instanceId);
         }
         return instanceId;
     }
@@ -108,19 +127,25 @@ public class AWSInstanceInfo implements InstanceInfo {
     @Override
     public String getInstanceType() {
         if (instanceType == null) {
-            instanceType =
+            String oldinstanceType =
                     SystemUtils.getDataFromUrl(
                             "http://169.254.169.254/latest/meta-data/instance-type");
+            instanceType = EC2MetadataUtils.getInstanceType();
+            logger.info("ayushis: oldinatncetype : {}", oldinstanceType);
+            logger.info("ayushis: new instancetype: {}", instanceType);
         }
         return instanceType;
     }
 
     private String getMac() {
         if (mac == null) {
-            mac =
+            String oldmac =
                     SystemUtils.getDataFromUrl(
                                     "http://169.254.169.254/latest/meta-data/network/interfaces/macs/")
                             .trim();
+            mac = EC2MetadataUtils.getMacAddress();
+            logger.info("ayushis: oldmac : {}", oldmac);
+            logger.info("ayushis: newmac: {}", mac);
         }
         return mac;
     }
@@ -129,7 +154,12 @@ public class AWSInstanceInfo implements InstanceInfo {
     public String getRegion() {
         try {
             getIdentityDocument();
-            return this.identityDocument.getString("region");
+            String oldregion = this.identityDocument.getString("region");
+            // return this.identityDocument.getString("region");
+            String newregion = EC2MetadataUtils.getEC2InstanceRegion();
+            logger.info("ayushis: oldregion : {}", oldregion);
+            logger.info("ayushis: newregion: {}", newregion);
+            return newregion;
         } catch (JSONException e) {
             // If there is any issue in getting region, use AZ as backup.
             return getRac().substring(0, getRac().length() - 1);
@@ -152,12 +182,15 @@ public class AWSInstanceInfo implements InstanceInfo {
 
         if (vpcId == null)
             try {
-                vpcId =
+                String oldvpcId =
                         SystemUtils.getDataFromUrl(
                                         "http://169.254.169.254/latest/meta-data/network/interfaces/macs/"
                                                 + nacId
                                                 + "vpc-id")
                                 .trim();
+                vpcId = EC2MetadataUtils.getNetworkInterfaces().get(0).getVpcId();
+                logger.info("ayushis: oldvpcId: {}", oldvpcId);
+                logger.info("ayushis: newvpcId: {}", vpcId);
             } catch (Exception e) {
                 logger.info(
                         "Vpc id does not exist for running instance, not fatal as running instance maybe not be in vpc.  Msg: {}",
@@ -211,9 +244,12 @@ public class AWSInstanceInfo implements InstanceInfo {
     @Override
     public String getHostname() {
         if (hostName == null) {
-            hostName =
+            String oldhostName =
                     tryGetDataFromUrl(PUBLIC_HOSTNAME_URL)
                             .orElse(SystemUtils.getDataFromUrl(LOCAL_HOSTNAME_URL));
+            hostName = newTryGetDataFromUrl(NEW_PUBLIC_HOSTNAME_URL).orElse(NEW_LOCAL_HOSTNAME_URL);
+            logger.info("ayushis: oldhostname: {}", oldhostName);
+            logger.info("ayushis: newhostname: {}", hostName);
         }
         return hostName;
     }
@@ -221,9 +257,12 @@ public class AWSInstanceInfo implements InstanceInfo {
     @Override
     public String getHostIP() {
         if (hostIP == null) {
-            hostIP =
+            String olhostIP =
                     tryGetDataFromUrl(PUBLIC_HOSTIP_URL)
                             .orElse(SystemUtils.getDataFromUrl(LOCAL_HOSTIP_URL));
+            hostIP = newTryGetDataFromUrl(NEW_PUBLIC_HOSTIP_URL).orElse(NEW_LOCAL_HOSTIP_URL);
+            logger.info("ayushis: olhostIP: {}", olhostIP);
+            logger.info("ayushis: newhostIP: {}", hostIP);
         }
         return hostIP;
     }
@@ -231,6 +270,14 @@ public class AWSInstanceInfo implements InstanceInfo {
     Optional<String> tryGetDataFromUrl(String url) {
         try {
             return Optional.of(SystemUtils.getDataFromUrl(url));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    Optional<String> newTryGetDataFromUrl(String url) {
+        try {
+            return Optional.of(EC2MetadataUtils.getData(url));
         } catch (Exception e) {
             return Optional.empty();
         }
