@@ -103,7 +103,7 @@ public class JMXNodeTool extends NodeProbe implements INodeToolObservable {
      *
      * @return
      */
-    private static boolean testConnection() {
+    public static boolean testConnection() {
         // connecting first time hence return false.
         if (tool == null) return false;
 

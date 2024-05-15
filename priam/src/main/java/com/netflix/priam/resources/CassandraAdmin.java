@@ -111,6 +111,9 @@ public class CassandraAdmin {
     @GET
     @Path("/info")
     public Response cassInfo() throws JSONException {
+        if (!JMXNodeTool.testConnection()) {
+            return Response.status(503).entity("JMXConnectionException").build();
+        }
         JMXNodeTool nodeTool;
         try {
             nodeTool = JMXNodeTool.instance(config);
@@ -137,6 +140,9 @@ public class CassandraAdmin {
     @GET
     @Path("/ring/{id}")
     public Response cassRing(@PathParam("id") String keyspace) throws JSONException {
+        if (!JMXNodeTool.testConnection()) {
+            return Response.status(503).entity("JMXConnectionException").build();
+        }
         JMXNodeTool nodeTool;
         try {
             nodeTool = JMXNodeTool.instance(config);
@@ -150,6 +156,9 @@ public class CassandraAdmin {
     @GET
     @Path("/status")
     public Response statusInfo() throws JSONException {
+        if (!JMXNodeTool.testConnection()) {
+            return Response.status(503).entity("JMXConnectionException").build();
+        }
         if (!instanceState.isGossipActive() && !instanceState.isNativeTransportActive()) {
             // if native is active but gossip isn't we still want to return to show that
             // there is a problem. but if both gossip and native are down the instance is
@@ -228,6 +237,9 @@ public class CassandraAdmin {
             @QueryParam("localDC") boolean localDCOnly,
             @DefaultValue("false") @QueryParam("primaryRange") boolean primaryRange)
             throws IOException, ExecutionException, InterruptedException {
+        if (!JMXNodeTool.testConnection()) {
+            return Response.status(503).entity("JMXConnectionException").build();
+        }
         JMXNodeTool nodeTool;
         try {
             nodeTool = JMXNodeTool.instance(config);
@@ -242,6 +254,9 @@ public class CassandraAdmin {
     @GET
     @Path("/version")
     public Response version() {
+        if (!JMXNodeTool.testConnection()) {
+            return Response.status(503).entity("JMXConnectionException").build();
+        }
         JMXNodeTool nodeTool;
         try {
             nodeTool = JMXNodeTool.instance(config);
