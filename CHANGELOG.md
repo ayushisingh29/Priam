@@ -1,4 +1,7 @@
 # Changelog
+## 2024/05/20 4.1.8
+Always use private IPs #1095
+
 ## 2024/04/11 4.1.7
 Remove backup V1 #1084
 
