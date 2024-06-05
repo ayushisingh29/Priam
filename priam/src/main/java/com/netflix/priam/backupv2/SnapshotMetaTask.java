@@ -48,6 +48,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -441,5 +442,27 @@ public class SnapshotMetaTask extends AbstractBackup {
                     }
                 };
         Futures.addCallback(future, callback, MoreExecutors.directExecutor());
+    }
+
+    public int countFilesInSnapshotDir(IConfiguration config) throws Exception {
+        int totalFileCount = 0;
+        Set<Path> snapshotDirectories =
+                AbstractBackup.getBackupDirectories(config, SNAPSHOT_FOLDER);
+        for (Path snapshotDir : snapshotDirectories) {
+            try (DirectoryStream<Path> directoryStream =
+                    Files.newDirectoryStream(snapshotDir, Files::isDirectory)) {
+                for (Path backupDir : directoryStream) {
+                    if (backupDir.toFile().getName().startsWith(SNAPSHOT_PREFIX)) {
+                        try (Stream<Path> stream = Files.list(backupDir)) {
+                            totalFileCount += stream.filter(Files::isRegularFile).count();
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("Failed to get files in snapshot directory. {}", e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        return totalFileCount;
     }
 }

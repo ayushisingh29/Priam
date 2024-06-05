@@ -17,19 +17,24 @@
 
 package com.netflix.priam.resources;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.netflix.priam.PriamServer;
 import com.netflix.priam.backup.*;
 import com.netflix.priam.backupv2.BackupTTLTask;
 import com.netflix.priam.backupv2.BackupV2Service;
 import com.netflix.priam.backupv2.IMetaProxy;
 import com.netflix.priam.backupv2.SnapshotMetaTask;
 import com.netflix.priam.config.IConfiguration;
+import com.netflix.priam.merics.BackupMetrics;
 import com.netflix.priam.notification.BackupNotificationMgr;
 import com.netflix.priam.utils.DateUtil;
 import com.netflix.priam.utils.DateUtil.DateRange;
 import com.netflix.priam.utils.GsonJsonSerializer;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -55,6 +60,9 @@ public class BackupServletV2 {
     private final Provider<AbstractBackupPath> pathProvider;
     private final BackupV2Service backupService;
     private final BackupNotificationMgr backupNotificationMgr;
+    private final PriamServer priamServer;
+
+    private final BackupMetrics backupMetrics;
     private static final String REST_SUCCESS = "[\"ok\"]";
 
     @Inject
@@ -68,7 +76,9 @@ public class BackupServletV2 {
             @Named("v2") IMetaProxy metaV2Proxy,
             Provider<AbstractBackupPath> pathProvider,
             BackupV2Service backupService,
-            BackupNotificationMgr backupNotificationMgr) {
+            BackupNotificationMgr backupNotificationMgr,
+            PriamServer priamServer,
+            BackupMetrics backupMetrics) {
         this.backupStatusMgr = backupStatusMgr;
         this.backupVerification = backupVerification;
         this.snapshotMetaService = snapshotMetaService;
@@ -78,6 +88,8 @@ public class BackupServletV2 {
         this.pathProvider = pathProvider;
         this.backupService = backupService;
         this.backupNotificationMgr = backupNotificationMgr;
+        this.priamServer = priamServer;
+        this.backupMetrics = backupMetrics;
     }
 
     @GET
@@ -180,5 +192,27 @@ public class BackupServletV2 {
                                                 .map(AbstractBackupPath::getRemotePath)
                                                 .collect(Collectors.toList())))
                 .build();
+    }
+
+    @GET
+    @Path("/state/{hours}")
+    public Response backupState(@PathParam("hours") int hours) throws Exception {
+        Map<String, Object> responseMap = new HashMap<>();
+
+        responseMap.put("tasksQueued", fs.getUploadTasksQueued());
+        responseMap.put("queueSize", priamServer.getConfiguration().getBackupQueueSize());
+        for (Map.Entry<String, Integer> entry :
+                backupService.countPendingBackupFiles().entrySet()) {
+            responseMap.put(entry.getKey(), entry.getValue());
+        }
+
+        List<BackupMetadata> latestBackupMetadata =
+                backupStatusMgr.getLatestBackupMetadata(
+                        new DateRange(Instant.now().minus(hours, ChronoUnit.HOURS), Instant.now()));
+        responseMap.put("latestBackupMetadata", latestBackupMetadata);
+
+        ObjectMapper mapper = new ObjectMapper();
+        String jsonResponse = mapper.writeValueAsString(responseMap);
+        return Response.ok(jsonResponse).build();
     }
 }

@@ -25,6 +25,8 @@ import com.netflix.priam.identity.token.ITokenRetriever;
 import com.netflix.priam.scheduler.PriamScheduler;
 import com.netflix.priam.scheduler.TaskTimer;
 import com.netflix.priam.tuner.CassandraTunerService;
+import java.util.HashMap;
+import java.util.Map;
 import javax.inject.Inject;
 import org.apache.commons.lang3.math.Fraction;
 
@@ -101,4 +103,11 @@ public class BackupV2Service implements IService {
 
     @Override
     public void updateServicePost() throws Exception {}
+
+    public Map<String, Integer> countPendingBackupFiles() throws Exception {
+        Map<String, Integer> backupFiles = new HashMap<String, Integer>();
+        backupFiles.put("snapshotFiles", snapshotMetaTask.countFilesInSnapshotDir(configuration));
+        backupFiles.put("incrementalFiles", IncrementalBackup.countFilesInBackupDir(configuration));
+        return backupFiles;
+    }
 }
